@@ -1,0 +1,10 @@
+{
+  "name": "kineticist",
+  "version": "1.5.0",
+  "description": "Pinball news, games and editions, designers, places to play and the Hype Index from Kineticist.",
+  "mcpServers": {
+    "kineticist": {
+      "httpUrl": "https://www.kineticist.com/api/mcp"
+    }
+  }
+}

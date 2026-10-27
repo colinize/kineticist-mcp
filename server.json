@@ -1,0 +1,36 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "com.kineticist/mcp-server",
+  "title": "Kineticist",
+  "description": "Pinball news, games and editions, designers, places to play and the Hype Index from Kineticist.",
+  "websiteUrl": "https://www.kineticist.com/mcp",
+  "repository": {
+    "url": "https://github.com/colinize/kineticist-mcp",
+    "source": "github"
+  },
+  "version": "1.5.0",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://www.kineticist.com/api/mcp"
+    }
+  ],
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@kineticist/mcp-server",
+      "version": "1.5.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "KINETICIST_API_KEY",
+          "description": "Your Kineticist API key (from kineticist.com/settings). The hosted server needs none.",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

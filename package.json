@@ -1,0 +1,52 @@
+{
+  "name": "@kineticist/mcp-server",
+  "version": "1.5.0",
+  "description": "MCP server for querying the Kineticist pinball game database from AI agents. mcprush.com-8599c0cdbeddde143955a1e8",
+  "type": "module",
+  "main": "dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "default": "./dist/server.js"
+    }
+  },
+  "bin": {
+    "kineticist-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "keywords": [
+    "pinball",
+    "kineticist",
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "claude",
+    "api"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/colinize/kineticist-mcp.git"
+  },
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.3.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3"
+  },
+  "mcpName": "com.kineticist/mcp-server",
+  "homepage": "https://www.kineticist.com/mcp"
+}
