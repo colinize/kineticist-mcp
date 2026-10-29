@@ -723,11 +723,12 @@ export function createKineticistMCPServer(
     "What's new in pinball: \"what's new in pinball this week?\", \"latest pinball news\", \"what's climbing the Hype Index?\". The latest Kineticist news articles (headline, date, summary and link; `members_section` means part of the article is for members; `games` lists the machines an article covers, get_game_details with a game's slug returns its editions, prices and design team; a release announced in the last few days may not have its new editions in the database yet, so check the edition dates against the article before quoting prices), new videos, podcasts and posts from the pinball creators Kineticist follows (`from_creators`: title, creator, format, date, summary, link), and Kineticist's Hype Index ranking (the current top 10 and this week's biggest climbers; `change_this_week` and `up` are places moved on the index since a week ago, positive is up, and a missing change means there's no rank from a week ago). This covers the week in pinball; each article and creator item carries its link.",
     {
       days: z.number().int().min(1).max(30).optional().describe("How far back to look for news, in days (default 7)"),
+      creators: z.number().int().min(1).max(40).optional().describe("How many creator items to list (default 8). Ask for more, up to 40, for a full roundup of the window"),
     },
     async (args) => {
       // Pictures (news and creator thumbnails) are for the card; the
       // written answer leaves them out.
-      const data = dataOf(await api(`/api/v1/whats-new?${query({ days: args.days })}`));
+      const data = dataOf(await api(`/api/v1/whats-new?${query({ days: args.days, creators: args.creators })}`));
       return withCard(withoutImages(data), () => buildNewsCard(data));
     },
     cardMeta,
