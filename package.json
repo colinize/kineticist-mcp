@@ -12,6 +12,10 @@
     "./server": {
       "types": "./dist/server.d.ts",
       "default": "./dist/server.js"
+    },
+    "./cards": {
+      "types": "./dist/cards.d.ts",
+      "default": "./dist/cards.js"
     }
   },
   "bin": {
