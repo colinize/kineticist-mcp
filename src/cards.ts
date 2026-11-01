@@ -541,3 +541,133 @@ export function buildHypeCard(data: Json): HypeCard | null {
       .filter((p) => p.date && p.rank > 0),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Articles, people and manufacturers (get on a /news, /people or
+// /manufacturers page). Discord's link previews draw them; the MCP's own card
+// page doesn't yet.
+// ---------------------------------------------------------------------------
+
+const ABBREVIATION = /(?:^|\s)(?:[A-Z]|Mr|Mrs|Ms|Dr|Jr|Sr|St|Inc|Co|Corp|Ltd|vs|No|Vol)\.$/;
+const MAX_SENTENCE = 280;
+
+/**
+ * The first sentence of plain text, as written: "Keith Elwin is a designer at
+ * Stern. He…" → "Keith Elwin is a designer at Stern." Initials and common
+ * abbreviations ("Jr.", "Inc.") don't end a sentence. A first sentence longer
+ * than MAX_SENTENCE is cut at a word, with an ellipsis.
+ */
+export function firstSentence(text: unknown): string | null {
+  const t = (str(text) ?? "").replace(/\s+/g, " ").trim();
+  if (!t) return null;
+  const end = /[.!?]["”’)]?(?=\s+["“‘(]?[A-Z0-9])/g;
+  let sentence = t;
+  for (let m = end.exec(t); m; m = end.exec(t)) {
+    if (!ABBREVIATION.test(t.slice(0, m.index + 1))) {
+      sentence = t.slice(0, m.index + m[0].length);
+      break;
+    }
+  }
+  if (sentence.length <= MAX_SENTENCE) return sentence;
+  return `${sentence.slice(0, MAX_SENTENCE).replace(/\s+\S*$/, "")}…`;
+}
+
+export interface ArticleCard {
+  kind: "article";
+  title: string;
+  url: string | null;
+  date: string | null;
+  /** The article's free summary; a members-only half is never read. */
+  summary: string | null;
+  image: string | null;
+  members_section: boolean;
+}
+
+export function buildArticleCard(data: Json): ArticleCard | null {
+  const title = str(data.title);
+  if (!title) return null;
+  return {
+    kind: "article",
+    title,
+    url: str(data.url),
+    date: str(data.date),
+    summary: str(data.summary),
+    image: str(data.image),
+    members_section: data.members_section === true,
+  };
+}
+
+/** One of a person's or a manufacturer's games. */
+export interface CardGame {
+  name: string;
+  url: string | null;
+  year: number | null;
+}
+
+function cardGames(list: unknown): CardGame[] {
+  return Array.isArray(list)
+    ? (list as Json[]).map((g) => ({ name: str(g.name) ?? "", url: str(g.url), year: num(g.year) })).filter((g) => g.name !== "")
+    : [];
+}
+
+function strings(list: unknown): string[] {
+  return Array.isArray(list) ? list.map(str).filter((s): s is string => s !== null) : [];
+}
+
+export interface PersonCard {
+  kind: "person";
+  name: string;
+  url: string | null;
+  roles: string[];
+  makers: string[];
+  years: string | null;
+  /** The first sentence of the bio on their page, never a summary. */
+  bio: string | null;
+  /** Newest first. */
+  games: CardGame[];
+  games_count: number;
+}
+
+export function buildPersonCard(data: Json): PersonCard | null {
+  const name = str(data.name);
+  if (!name) return null;
+  const games = cardGames(data.games);
+  return {
+    kind: "person",
+    name,
+    url: str(data.url),
+    roles: strings(data.roles),
+    makers: strings(data.makers),
+    years: str(data.years),
+    bio: firstSentence(data.bio),
+    games,
+    games_count: Math.max(num(data.games_count) ?? 0, games.length),
+  };
+}
+
+export interface ManufacturerCard {
+  kind: "manufacturer";
+  name: string;
+  url: string | null;
+  years: string | null;
+  /** The first sentence of the description on its page. */
+  about: string | null;
+  /** Newest first. */
+  games: CardGame[];
+  games_count: number;
+}
+
+export function buildManufacturerCard(data: Json): ManufacturerCard | null {
+  const name = str(data.name);
+  if (!name) return null;
+  const games = cardGames(data.games);
+  return {
+    kind: "manufacturer",
+    name,
+    url: str(data.url),
+    years: str(data.years),
+    about: firstSentence(data.about),
+    games,
+    games_count: Math.max(num(data.games_count) ?? 0, games.length),
+  };
+}
