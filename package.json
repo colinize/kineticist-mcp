@@ -1,7 +1,7 @@
 {
   "name": "@kineticist/mcp-server",
   "version": "1.5.0",
-  "description": "MCP server for querying the Kineticist pinball game database from AI agents. mcprush.com-8599c0cdbeddde143955a1e8",
+  "description": "MCP server for querying the Kineticist pinball game database from AI agents.",
   "type": "module",
   "main": "dist/index.js",
   "exports": {
@@ -44,7 +44,7 @@
     "dev": "tsx src/index.ts"
   },
   "dependencies": {
-    "@modelcontextprotocol/server": "^2.3.1",
+    "@modelcontextprotocol/server": "^2.4.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {

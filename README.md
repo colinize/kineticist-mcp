@@ -3,6 +3,8 @@
 
 # @kineticist/mcp-server
 
+<!-- mcprush.com-8599c0cdbeddde143955a1e8 (directory ownership token; moved here from the npm description field) -->
+
 Model Context Protocol server for the Kineticist pinball game database. Lets
 AI agents like Claude, Cursor, and ChatGPT search the catalog, read game
 details, and act on your own library: log plays, toggle ownership and
