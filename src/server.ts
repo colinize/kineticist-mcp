@@ -133,6 +133,30 @@ function looksLikeSlug(id: string): boolean {
     && !/^[0-9a-f]{8}-?[0-9a-f]{4}/.test(id);
 }
 
+/**
+ * Search words for a game id that didn't resolve, or null when the id isn't a
+ * guessed slug (a UUID, gm_ id or OPDB id). Agents often build a slug from
+ * the name and year: "medieval-madness-1997" → "medieval madness",
+ * "fallout" → "fallout".
+ */
+export function slugToSearchText(id: string): string | null {
+  const trimmed = id.trim().toLowerCase();
+  if (!looksLikeSlug(trimmed)) return null;
+  const words = trimmed.replace(/-/g, " ").replace(/\s(?:19|20)\d\d$/, "").trim();
+  return words.length >= 2 && /[a-z]/.test(words) ? words : null;
+}
+
+/** One line naming the closest games, for a game-id miss. */
+export function closestGamesText(matches: { slug: string; name?: string; year?: number | null; manufacturer?: string | null }[]): string {
+  const list = matches
+    .map((g) => {
+      const about = [g.name, g.manufacturer, g.year].filter((v) => v != null && v !== "").join(", ");
+      return about ? `${g.slug} (${about})` : g.slug;
+    })
+    .join("; ");
+  return `Closest games: ${list}. Call again with one of these slugs as id.`;
+}
+
 /** What a reader sees about downloading, shared by list_game_files. Site
  *  downloads are sign-in gated (src/lib/actions/file-download.ts). */
 export function filesDownloadNote(slug: string | null): string {
@@ -352,6 +376,43 @@ export function createKineticistMCPServer(
     return res.json();
   }
 
+  /**
+   * Read one game by id. When the id doesn't resolve and looks like a guessed
+   * slug, the 404 comes back with the closest games appended, so the agent
+   * can retry with a real slug instead of giving up. The API's own message
+   * stays first: mcp-analytics recognises a not-found answer by its hint.
+   */
+  async function readGame<T>(id: string, read: () => Promise<T>): Promise<T> {
+    try {
+      return await read();
+    } catch (err) {
+      if (!(err instanceof NotFoundError)) throw err;
+      const matches = await closestGames(id);
+      if (matches.length === 0) throw err;
+      throw new NotFoundError(`${err.message} ${closestGamesText(matches)}`, err.apiError);
+    }
+  }
+
+  async function closestGames(id: string) {
+    const q = slugToSearchText(id);
+    if (!q) return [];
+    let body: { data?: { slug?: unknown; name?: unknown; first_manufacture_year?: unknown; manufacturer?: { name?: unknown } | null }[] };
+    try {
+      body = (await api(`/api/v1/games?q=${encodeURIComponent(q)}&limit=3`)) as typeof body;
+    } catch {
+      // no-silent-failure: best-effort suggestions; the caller rethrows the original not-found.
+      return [];
+    }
+    return (Array.isArray(body?.data) ? body.data : [])
+      .filter((g): g is typeof g & { slug: string } => typeof g.slug === "string" && g.slug !== id)
+      .map((g) => ({
+        slug: g.slug,
+        name: typeof g.name === "string" ? g.name : undefined,
+        year: typeof g.first_manufacture_year === "number" ? g.first_manufacture_year : null,
+        manufacturer: typeof g.manufacturer?.name === "string" ? g.manufacturer.name : null,
+      }));
+  }
+
   async function postAction(body: Record<string, unknown>): Promise<unknown> {
     const res = (await api("/api/v1/me/actions", {
       method: "POST",
@@ -492,7 +553,8 @@ export function createKineticistMCPServer(
       // The card always shows the lead credits, so fetch them when it's on;
       // the written answer carries them only when they were asked for.
       const include = args.include_credits || cards ? "?include=credits" : "";
-      const data = (await shapeGameAnswer(await api(`/api/v1/games/${encodeURIComponent(args.id)}${include}`))) as {
+      const raw = await readGame(args.id, () => api(`/api/v1/games/${encodeURIComponent(args.id)}${include}`));
+      const data = (await shapeGameAnswer(raw)) as {
         data?: Record<string, unknown>;
       } | null;
       if (!args.include_credits && data?.data && "credits" in data.data) {
@@ -535,7 +597,7 @@ export function createKineticistMCPServer(
       id: z.string().describe("Game slug or ID"),
     },
     async (args) => {
-      const data = (await api(`/api/v1/games/${encodeURIComponent(args.id)}/credits`)) as {
+      const data = (await readGame(args.id, () => api(`/api/v1/games/${encodeURIComponent(args.id)}/credits`))) as {
         data?: { person?: { slug?: string } }[];
         links?: { game?: string };
         game_url?: string;
@@ -574,7 +636,7 @@ export function createKineticistMCPServer(
         pagination?: { total?: number; has_more?: boolean };
       };
       try {
-        body = (await api(`/api/v1/games/${slug}/files?${qs}`)) as typeof body;
+        body = (await readGame(args.id, () => api(`/api/v1/games/${slug}/files?${qs}`))) as typeof body;
       } catch (err) {
         return {
           isError: true,
