@@ -506,12 +506,20 @@ export function createKineticistMCPServer(
     );
   }
 
+  /** structuredContent for a card result: the full answer's fields plus `card` (last, so it can't be shadowed). */
+  function cardContent(answer: unknown, card: unknown): Record<string, unknown> {
+    const fields = answer && typeof answer === "object" && !Array.isArray(answer) ? (answer as Record<string, unknown>) : { answer };
+    return { ...fields, card };
+  }
+
   /** An answer as text, plus a card's data when cards are on and there's one to draw. */
   function withCard(answer: unknown, card: () => unknown) {
     const text = { content: [{ type: "text" as const, text: JSON.stringify(answer, null, 2) }] };
     if (!cards) return text;
     const data = card();
-    return data ? { ...text, structuredContent: { card: data } } : text;
+    // Clients that draw cards (Claude, ChatGPT) show the model only
+    // structuredContent, so it carries the whole answer beside the card.
+    return data ? { ...text, structuredContent: cardContent(answer, data) } : text;
   }
 
   /** A game answer as text, plus the game card. */
@@ -525,12 +533,12 @@ export function createKineticistMCPServer(
     "search_pinball_games",
     "Find pinball machines: \"what Stern machines are in production right now?\", \"what pinball games has Stern made?\", \"pinball games from 1992\". `in_production` filters to machines Kineticist lists as currently made. Searches and filters the Kineticist pinball game database. Supports text search, manufacturer filtering, year ranges, production status, and sorting. Returns game names, slugs, manufacturers, fun scores, edition counts, and each game's page URL on kineticist.com (link it when citing a game). " + YEAR_FIELDS_NOTE,
     {
-      q: z.string().optional().describe("Text search by game name (fuzzy, 2+ chars). Natural language works — 'that stern game with dinosaurs' will find Godzilla."),
+      q: z.string().optional().describe("Part of the game's name (2+ chars), e.g. 'godzilla' or 'black knight'. When no name contains it, Kineticist search picks the closest games and `matched_by` and `note` say so; when nothing fits, `suggestions` names the closest games."),
       manufacturer: z.string().optional().describe("Filter by manufacturer name or slug (fuzzy match — 'stern' works)"),
       in_production: z.boolean().optional().describe("Filter to only games currently in production (true) or out of production (false)"),
       year_from: z.number().optional().describe("Minimum manufacture year"),
       year_to: z.number().optional().describe("Maximum manufacture year"),
-      sort: z.string().optional().describe("Sort field. Prefix with - for descending. Options: name, first_manufacture_year, average_fun_score, ratings_count"),
+      sort: z.string().optional().describe("Sort field. Prefix with - for descending. Options: name, first_manufacture_year, average_fun_score, ratings_count. Missing values sort last; average_fun_score puts games under 5 ratings last."),
       limit: z.number().optional().describe("Results per page (1-100, default 25)"),
     },
     async (args) => {
@@ -697,7 +705,7 @@ export function createKineticistMCPServer(
       const g = (await api(`/api/v1/games/${slug}`).catch(() => null)) as { data?: Json } | null;
       const gameSlug = typeof g?.data?.slug === "string" ? g.data.slug : looksLikeSlug(args.id) ? args.id : null;
       const card = buildFilesCard(body as Json, g?.data ?? null, gameSlug ? gamePageUrl(gameSlug) : null);
-      return card ? { ...text, structuredContent: { card } } : text;
+      return card ? { ...text, structuredContent: cardContent({ ...(body as Json), summary: out.join("\n\n") }, card) } : text;
     },
     cardMeta,
   );
@@ -717,11 +725,11 @@ export function createKineticistMCPServer(
 
   tool(
     "where_to_play",
-    "Where to play pinball, or a specific machine: \"where can I play Godzilla near 97214?\", \"where can I play pinball in Chicago?\", \"pinball bars in Portland\". Finds pinball venues near a place: a postal code (\"60601\", \"SW1A 1AA\" with country gb) or a city (\"Chicago\", \"Portland, OR\"). Pass `game` (name or slug) to find venues that have that machine. Returns up to 10 venues, nearest first, with city, distance in miles, machine count, venue kind (bar, arcade…) and `url`, the venue's page on kineticist.com (link it; it has the address and full machine list). `searched` says which place distances are measured from (\"central Chicago, IL\" is the city centre; \"(middle of our venues there)\" means a smaller city placed by its venues); `note` says when these are the nearest anywhere rather than nearby. Machine lists come from Pinball Map and can lag.",
+    "Where to play pinball, or a specific machine: \"where can I play Godzilla near 97214?\", \"where can I play pinball in Chicago?\", \"pinball bars in Portland\". Finds pinball venues near a place: a postal code (\"60601\", \"SW1A 1AA\" with country gb) or a city (\"Chicago\", \"Portland, OR\"). Pass `game` (name or slug) to find venues that have that machine. Returns up to 10 venues, nearest first, with city, distance in miles, machine count, venue kind (bar, arcade…) and `url`, the venue's page on kineticist.com (link it; it has the address and full machine list). `searched` says which place distances are measured from (\"central Chicago, IL\" is the city centre; \"(middle of our venues there)\" means a smaller city placed by its venues); `note` says when these are the nearest anywhere rather than nearby, or when no game has exactly the name asked. A game name that fits several machines answers for the best match (`game`, with its year) and lists the rest in `other_matches`; pass one's slug as `game` to ask about that one. Machine lists come from Pinball Map and can lag.",
     {
       place: z.string().min(1).max(80).describe("Postal code or city, e.g. \"60601\", \"Chicago\", \"Portland, OR\""),
       country: z.string().length(2).optional().describe("Two-letter country code for postal codes outside the US (gb, ca, de…). Default us."),
-      game: z.string().min(1).max(80).optional().describe("Only venues that have this game: a name (\"Godzilla\") or slug (godzilla-2021)"),
+      game: z.string().min(1).max(80).optional().describe("Only venues that have this game: a name (\"Godzilla\") or slug (godzilla-2021). A slug pins one machine."),
     },
     async (args) => {
       // Each venue already carries its `url`. A place or game that can't be
@@ -787,7 +795,7 @@ export function createKineticistMCPServer(
         // Places and Hype Index themes get a card; the card data never
         // reaches the written answer.
         const card = cards && data.card ? (data.card.kind === "venue" ? buildVenueCard(data.card) : data.card.kind === "hype" ? buildHypeCard(data.card) : null) : null;
-        return card ? { ...answer, structuredContent: { card } } : answer;
+        return card ? { ...answer, structuredContent: cardContent({ markdown: text, url: data.url }, card) } : answer;
       }
       const { card: _card, members_section: _members, ...rest } = data;
       return json(rest);
