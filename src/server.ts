@@ -146,6 +146,19 @@ export function slugToSearchText(id: string): string | null {
   return words.length >= 2 && /[a-z]/.test(words) ? words : null;
 }
 
+/** The year an agent tacked onto a guessed slug ("medieval-madness-1997" →
+ *  1997), or null. Used to rank the suggestions, not to search. */
+export function slugYear(id: string): number | null {
+  const m = /-((?:19|20)\d\d)$/.exec(id.trim().toLowerCase());
+  return m ? Number(m[1]) : null;
+}
+
+/** Games from the year the agent asked for go first; otherwise search order. */
+export function rankByYear<T extends { year?: number | null }>(matches: T[], year: number | null): T[] {
+  if (year == null) return matches;
+  return [...matches.filter((g) => g.year === year), ...matches.filter((g) => g.year !== year)];
+}
+
 /** One line naming the closest games, for a game-id miss. */
 export function closestGamesText(matches: { slug: string; name?: string; year?: number | null; manufacturer?: string | null }[]): string {
   const list = matches
@@ -398,12 +411,13 @@ export function createKineticistMCPServer(
     if (!q) return [];
     let body: { data?: { slug?: unknown; name?: unknown; first_manufacture_year?: unknown; manufacturer?: { name?: unknown } | null }[] };
     try {
-      body = (await api(`/api/v1/games?q=${encodeURIComponent(q)}&limit=3`)) as typeof body;
+      // Five, so a game from the asked-for year can rise into the three shown.
+      body = (await api(`/api/v1/games?q=${encodeURIComponent(q)}&limit=5`)) as typeof body;
     } catch {
       // no-silent-failure: best-effort suggestions; the caller rethrows the original not-found.
       return [];
     }
-    return (Array.isArray(body?.data) ? body.data : [])
+    const matches = (Array.isArray(body?.data) ? body.data : [])
       .filter((g): g is typeof g & { slug: string } => typeof g.slug === "string" && g.slug !== id)
       .map((g) => ({
         slug: g.slug,
@@ -411,6 +425,7 @@ export function createKineticistMCPServer(
         year: typeof g.first_manufacture_year === "number" ? g.first_manufacture_year : null,
         manufacturer: typeof g.manufacturer?.name === "string" ? g.manufacturer.name : null,
       }));
+    return rankByYear(matches, slugYear(id)).slice(0, 3);
   }
 
   async function postAction(body: Record<string, unknown>): Promise<unknown> {
