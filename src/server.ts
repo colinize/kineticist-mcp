@@ -444,7 +444,7 @@ export function createKineticistMCPServer(
     {
       name: "kineticist",
       title: "Kineticist",
-      version: "1.5.0",
+      version: "1.5.1",
       description: "Pinball machines, places to play, designers, news and the Hype Index from Kineticist.",
       websiteUrl: SITE_URL,
     },

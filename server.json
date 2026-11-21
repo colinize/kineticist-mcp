@@ -8,7 +8,7 @@
     "url": "https://github.com/colinize/kineticist-mcp",
     "source": "github"
   },
-  "version": "1.5.0",
+  "version": "1.5.1",
   "remotes": [
     {
       "type": "streamable-http",
@@ -19,7 +19,7 @@
     {
       "registryType": "npm",
       "identifier": "@kineticist/mcp-server",
-      "version": "1.5.0",
+      "version": "1.5.1",
       "transport": {
         "type": "stdio"
       },

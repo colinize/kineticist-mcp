@@ -1,6 +1,6 @@
 {
   "name": "@kineticist/mcp-server",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "MCP server for querying the Kineticist pinball game database from AI agents.",
   "type": "module",
   "main": "dist/index.js",
